@@ -1,0 +1,1 @@
+SUBSYSTEM=="drm", ACTION=="change", RUN="/etc/event_fifos/monitor.sh CHANGE"
