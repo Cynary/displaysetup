@@ -7,8 +7,11 @@ results=$(mktemp)
 STATE_HASH=0
 DISPLAYS_CONFIG_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 cd $DISPLAYS_CONFIG_DIR
-echo $DISPLAYS_CONFIG_DIR
 PATH=$PATH:"$DISPLAYS_CONFIG_DIR"
+
+new_state=$(mktemp)
+echo false > $new_state
+(while cat /etc/event_fifos/monitor.fifo; do echo true > $new_state; done) &
 
 while true
 do
@@ -34,6 +37,6 @@ do
         echo "Just got into the same state as before, no changes"
     fi
 
-    dd if=/etc/event_fifos/monitor.fifo iflag=nonblock of=/dev/null &> /dev/null
-    cat /etc/event_fifos/monitor.fifo &> /dev/null
+    echo false > $new_state
+    while ! $(cat $new_state); do sleep 1; done
 done
