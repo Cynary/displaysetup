@@ -52,7 +52,7 @@ edid_list.sort()
 state_hash = hash(tuple(i for i,_ in edid_list))
 exec_string = ''
 for i,(_,monitor) in enumerate(edid_list):
-    exec_string += "MONITOR_%d=\"%s\" " % (i, monitor)
+    exec_string += "MONITOR_%d=%s " % (i, monitor)
 
 if (len(sys.argv) == 1):
     print("STATE_HASH=%d" % state_hash)
@@ -72,14 +72,14 @@ elif state_hash in state_hash_to_script:
     if (old_state != state_hash):
 
         print("RESULT=TRANSITION")
-        os.system("%s ./%s" % (exec_string, state_hash_to_script[state_hash]))
+        os.system("%s ./%s &> /dev/null" % (exec_string, state_hash_to_script[state_hash]))
         # Turn off all unplugged monitors
         #
         if (len(disconnected_monitors) != 0):
             off_string = 'xrandr '
             for m in disconnected_monitors:
                 off_string += "--output %s --off " % m
-            os.system(off_string)
+            os.system("%s &> /dev/null" % off_string)
     else:
         print("RESULT=REPEATED")
 else:
