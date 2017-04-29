@@ -9,6 +9,17 @@ DISPLAYS_CONFIG_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 cd $DISPLAYS_CONFIG_DIR
 PATH=$PATH:"$DISPLAYS_CONFIG_DIR"
 
+if [ $(pgrep -cx run.sh) -gt 0 ] ; then
+    printf "%s\n" "The display script is already running, terminating old one." >&2
+    for pid in $(pgrep run.sh)
+    do
+        if [ "$pid" != "$$" ]
+        then
+            kill $pid
+        fi
+    done
+fi
+
 new_state=$(mktemp)
 echo false > $new_state
 (while cat /etc/event_fifos/monitor.fifo; do echo true > $new_state; done) &
@@ -17,7 +28,7 @@ while true
 do
     for ((i = 0; i < 30; i++))
     do
-        PYTHONHASHSEED=0 check_state.py $STATE_HASH > $results
+        PYTHONHASHSEED=0 check_state.py --old-state=$STATE_HASH -e > $results
         source $results
         echo $RESULT $STATE_HASH
         if [ "$RESULT" != "REPEATED" ]
