@@ -106,20 +106,17 @@ def process_config(config_file):
 #  Runs "xrandr --verbose" to figure out which monitors exist in the system, which are
 #  disconnected, which are connected, and what their edids are.
 #
-#  It populates the global state `edid_list`, `disconnected_monitors`, and
-#  `connected_monitors` with that information. `connected_monitors` is further intersected
-#  with `bspc query -M --names`
+#  It populates the global state `edid_list` and `disconnected_monitors` with that
+#  information. `connected_monitors` is further intersected with `bspc query -M --names`
 #
 def get_monitors():
-    global edid_list, disconnected_monitors, connected_monitors, SCRIPT_NAME
+    global edid_list, disconnected_monitors, SCRIPT_NAME
 
     only_once = "Can only obtain display information once per %s run" % SCRIPT_NAME
     assert edid_list is None, only_once
     assert disconnected_monitors is None, only_once
-    assert connected_monitors is None, only_once
     edid_list = []
     disconnected_monitors = []
-    connected_monitors = []
 
     DISCONNECTED_STATE_STRING='disconnected'
     xrandr = ProcessReader("xrandr --verbose")
@@ -128,8 +125,6 @@ def get_monitors():
             monitor_name, state = line.split(' ')[:2]
             if (state == DISCONNECTED_STATE_STRING):
                 disconnected_monitors.append(monitor_name)
-            else:
-                connected_monitors.append(monitor_name)
         if (line.startswith('\tEDID:')):
             edid = ''
             line = next(xrandr)
@@ -137,10 +132,6 @@ def get_monitors():
                 edid += line.strip()
                 line = next(xrandr)
             edid_list.append((edid, monitor_name))
-
-    bspc_monitors = set(m.strip() for m in ProcessReader("bspc query -M --names"))
-    connected_monitors = [m for m in connected_monitors if m in bspc_monitors]
-    assert len(connected_monitors) > 0, "WTF? This can only succeed if it has more than 1 monitor"
 
 #-------------------------------------------------------------------------------------------
 # Function `compute_current_state`
@@ -204,14 +195,10 @@ def fix_script(script_file):
 #
 #  - turn all disconnected monitors off via "xrandr"
 #
-#  - move all desktops in non-connected monitors to a connected monitor.
-#
-#  - remove all non-connected monitors from "bspwm"
-#
 #  - execute the script from `state_hash_to_script`
 #
 def execute_script():
-    global state_hash, state_hash_to_script, disconnected_monitors, connected_monitors
+    global state_hash, state_hash_to_script, disconnected_monitors
     global prefix_exec
     assert state_hash is not None
     assert state_hash_to_script is not None
@@ -226,19 +213,6 @@ def execute_script():
             for m in disconnected_monitors:
                 off_string += "--output %s --off " % m
             syscall("%s &> /dev/null" % off_string)
-
-        # Move all desktops in non-connected monitors to a connected monitor in bspwm
-        #
-        bspc_disconnected_monitors = [m.strip() for m in ProcessReader("bspc query -M --names") \
-                                      if m.strip() not in connected_monitors]
-        assert len(connected_monitors) > 0
-        destination_monitor = connected_monitors[0]
-        for m in bspc_disconnected_monitors:
-            for d in ProcessReader("bspc query -D -m %s" % m):
-                syscall("bspc desktop %s -m %s" % (d.strip(),destination_monitor))
-            # Now that all its desktops have been safely moved, remove it.
-            #
-            syscall("bspc monitor %s -r" % m)
 
         # Finally, execute the script
         #
