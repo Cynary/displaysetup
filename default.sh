@@ -1,4 +1,5 @@
 #!/bin/bash
+./bspwm_preamble.py
 xrandr --output $MONITOR_0 --auto --primary
 for i in {1..9} 0
 do
