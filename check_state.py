@@ -145,19 +145,41 @@ def get_monitors():
 #  It also creates the `prefix_exec` string which is used to identify monitors in a unique
 #  repeatable order to the scripts this program runs.
 #
+#  If the script is executing (that means it's explicitly not computing a new state), then
+#  if the state that it computes does not exist in `state_hash_to_script` map, then it tries
+#  to check if a subset of the currently connected monitors generates a state in that
+#  map. If so, then it alters global state to match that state.
+#
 def compute_current_state():
-    global edid_list, state_hash, prefix_exec
+    global edid_list, state_hash, prefix_exec, state_hash_to_script, options
 
-    assert edid_list is not None, "Must call `get_monitors` first"
-    assert state_hash is None, "Can only compute the state hash once per %s run" % SCRIPT_NAME
-    assert prefix_exec is None, "Can only compute the state hash once per %s run" % SCRIPT_NAME
+    assert edid_list is not None, "Must call `get_monitors` first."
+    assert state_hash is None, "Can only compute the state hash once per %s run." % SCRIPT_NAME
+    assert prefix_exec is None, "Can only compute the state hash once per %s run." % SCRIPT_NAME
+    assert state_hash_to_script is not None, "Must call `process_config` first."
+    assert options is not None
 
     edid_list.sort()
-    state_hash = hash(tuple(i for i,_ in edid_list))
+    assert os.environ.get("PYTHONHASHSEED", None) == '0', "Must call script as " \
+        "PYTHONHASHSEED=0 %s" % ' '.join(sys.argv)
+    state_hash_tmp = hash(tuple(i for i,_ in edid_list))
+
+    if options.execute and state_hash_tmp not in state_hash_to_script and len(edid_list)>1:
+        for i,edid in enumerate(edid_list):
+            edid_list.pop(i)
+            compute_current_state()
+            if state_hash in state_hash_to_script:
+                # One of the recursive calls to compute_current_state succeeded, so the
+                # current global state is valid. Just return
+                #
+                return
+            edid_list.append(edid)
 
     prefix_exec = ""
     for i,(_,monitor) in enumerate(edid_list):
         prefix_exec += "MONITOR_%d=%s " % (i, monitor)
+
+    state_hash = state_hash_tmp
 
 #-------------------------------------------------------------------------------------------
 # Function `fix_script`
@@ -171,6 +193,7 @@ def fix_script(script_file):
     with open(script_file) as script:
         contents = script.read()
     id_monitor = [(i, monitor) for i,(_,monitor) in enumerate(sorted(edid_list))]
+
     # Backwards sort these by length so that longer words get replaced first. That way,
     # monitor names that are longer and contain shorter monitor names (e.g. eDP1 is longer
     # than and contains DP1 and are two plausible monitor names) get replaced first (if not,
