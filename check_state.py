@@ -204,7 +204,7 @@ def fix_script(script_file):
     for i,monitor in id_monitor:
         contents = contents.replace(monitor, "$MONITOR_%d" % i)
 
-    with open(sys.argv[2], 'w') as script:
+    with open(script_file, 'w') as script:
         script.write(contents)
 
 #-------------------------------------------------------------------------------------------
